@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="opencv-android-arm">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/app/libs/opencv-android-arm.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
