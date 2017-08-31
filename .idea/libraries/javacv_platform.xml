@@ -1,7 +1,7 @@
 <component name="libraryTable">
-  <library name="opencv-linux-armhf">
+  <library name="javacv-platform">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/app/libs/opencv-linux-armhf.jar!/" />
+      <root url="jar://$PROJECT_DIR$/app/libs/javacv-platform.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />

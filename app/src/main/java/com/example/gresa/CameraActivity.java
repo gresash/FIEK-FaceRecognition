@@ -26,9 +26,11 @@ import android.util.Log;
 import android.view.WindowManager;
 import android.widget.Toast;
 
-/**
- * Created by darrenl on 2016/5/20.
- */
+import com.tzutalin.dlib.Constants;
+
+import java.io.File;
+
+
 public class CameraActivity extends Activity {
 
     private static int OVERLAY_PERMISSION_REQ_CODE = 1;
@@ -39,14 +41,17 @@ public class CameraActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         setContentView(R.layout.activity_camera);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!Settings.canDrawOverlays(this.getApplicationContext())) {
-                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
-                startActivityForResult(intent, OVERLAY_PERMISSION_REQ_CODE);
+                if (!new File(Constants.getFaceShapeModelPath()).exists()) {
+                    // mTransparentTitleView.setText("Copying landmark model to " + Constants.getFaceShapeModelPath());
+                    FileUtils.copyFileFromRawToOthers(getBaseContext(), R.raw.shape_predictor_68_face_landmarks, Constants.getFaceShapeModelPath());
+                }
+                OpenCVFaceRecognizer.aktivizoDetektimin();
             }
-        }
-
+        }).start();
         if (null == savedInstanceState) {
             CameraConnectionFragment fragment=new CameraConnectionFragment();
             fragment.isRecognizing=getIntent().getBooleanExtra("isRecognizing",false);

@@ -4,7 +4,12 @@
     <string name="description_info">Select an image or open camera</string>
     <string name="request_permission">This sample needs camera permission.</string>
     <string name="camera_error">This device doesn\'t support Camera2 API.</string>
-    <string name="btnTrain">Add a new name</string>
+    <string name="btnTrain">Train Face Recognition</string>
     <string name="btnRecognize">Recognize Face</string>
     <string name="btnOK">OK</string>
+
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="btnClear">Clear data</string>
+    <string name="app_data_cleared">Application data has been cleared.</string>
 </resources>

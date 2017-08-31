@@ -19,6 +19,7 @@ package com.tzutalin.dlibtest;
 import android.graphics.Bitmap;
 import android.os.Environment;
 import android.support.annotation.Keep;
+import android.util.Log;
 
 import com.tzutalin.dlib.Constants;
 
@@ -32,6 +33,17 @@ import java.io.FileOutputStream;
  **/
 public class ImageUtils {
     private static final String TAG = ImageUtils.class.getSimpleName();
+
+    static {
+        try {
+            System.loadLibrary("android_dlib");
+            jniNativeClassInit();
+            Log.d(TAG, "jniNativeClassInit success");
+        } catch (UnsatisfiedLinkError e) {
+            Log.e(TAG, "library not found");
+        }
+    }
+
 
     /**
      * Utility method to compute the allocated size in bytes of a YUV420SP image
@@ -159,4 +171,8 @@ public class ImageUtils {
     @Keep
     public static native void convertRGB565ToYUV420SP(
             byte[] input, byte[] output, int width, int height);
+
+    @Keep
+    private native static void jniNativeClassInit();
+
 }

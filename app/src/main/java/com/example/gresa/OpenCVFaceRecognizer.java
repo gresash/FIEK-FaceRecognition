@@ -7,19 +7,23 @@ package com.example.gresa;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.os.AsyncTask;
+import android.util.Base64;
 import android.util.Log;
 
 import com.tzutalin.dlib.Constants;
+import com.tzutalin.dlib.FaceDet;
 
 import java.io.File;
 import java.io.FilenameFilter;
 import java.nio.IntBuffer;
+import java.util.ArrayList;
 
 import static org.bytedeco.javacpp.opencv_core.CV_32SC1;
 import static org.bytedeco.javacpp.opencv_core.CV_8UC1;
 import static org.bytedeco.javacpp.opencv_face.createFisherFaceRecognizer;
 import static org.bytedeco.javacpp.opencv_face.createEigenFaceRecognizer;
 import static org.bytedeco.javacpp.opencv_face.createLBPHFaceRecognizer;
+import static org.bytedeco.javacpp.opencv_imgcodecs.imdecode;
 import static org.bytedeco.javacpp.opencv_imgcodecs.imread;
 import static org.bytedeco.javacpp.opencv_imgproc.*;
 import static org.bytedeco.javacpp.opencv_imgcodecs.CV_LOAD_IMAGE_GRAYSCALE;
@@ -30,85 +34,97 @@ import org.bytedeco.javacpp.DoublePointer;
 import org.bytedeco.javacpp.opencv_face.FaceRecognizer;
 import org.bytedeco.javacpp.opencv_core.Mat;
 import org.bytedeco.javacpp.opencv_core.MatVector;
+import org.bytedeco.javacv.FrameGrabber;
 
 public class OpenCVFaceRecognizer {
-    public static final String TRAINING_DIR= Constants.APP_DIR+File.separator+"training";
-    public static final String TEST_IMAGE=Constants.APP_DIR+File.separator+"test"+File.separator+"FIEK-test.png";
-    private static FaceRecognizer faceRecognizerEigenfaces;
-    private static FaceRecognizer faceRecognizerFisherfaces;
     private static FaceRecognizer faceRecognizerLBP;
+    public static FaceDet faceDetector;
     public RecognitionAsync recognitionTask;
+    public ArrayList<Mat> trainingData;
+    public Mat testImage;
     public boolean isFinished;
     public int mLabel;
 
-    public OpenCVFaceRecognizer(boolean isRecognizing){
+    private boolean testMode;
+
+    public OpenCVFaceRecognizer(boolean isRecognizing,ArrayList<Mat>trainingData,Mat testImage,boolean testMode ){
+
         isFinished=false;
+        this.trainingData=trainingData;
+        this.testImage=testImage;
+        this.testMode=testMode;
+
         recognitionTask=new RecognitionAsync(isRecognizing);
         recognitionTask.execute();
 
     }
+    public static void aktivizoDetektimin(){
 
-    public static void Train(){
+        faceDetector=new FaceDet(Constants.getFaceShapeModelPath());
+        Log.d("FaceDetector","facedetector:" +(faceDetector!=null));
+    }
+
+    public static void Train(ArrayList<Mat> trainingData,boolean testMode){
     Log.d("Recognizer","Starting image training.");
-        File root = new File(TRAINING_DIR);
 
-        FilenameFilter imgFilter = new FilenameFilter() {
-            public boolean accept(File dir, String name) {
-                name = name.toLowerCase();
-                return name.endsWith(".jpg") || name.endsWith(".pgm") || name.endsWith(".png");
-            }
-        };
+        // Create matrix where each image is represented as a column vector
+        Log.d("SharedPrefs",trainingData.size()+" size");
+        MatVector images = new MatVector(trainingData.size());
 
-        File[] imageFiles = root.listFiles(imgFilter);
-
-        MatVector images = new MatVector(imageFiles.length);
-
-        Mat labels = new Mat(imageFiles.length, 1, CV_32SC1);
+        Mat labels = new Mat(trainingData.size(), 1, CV_32SC1);
         IntBuffer labelsBuf = labels.createBuffer();
 
         int counter = 0;
 
-        for (File image : imageFiles) {
-            Mat img = imread(image.getAbsolutePath(), CV_LOAD_IMAGE_GRAYSCALE);
+        for (Mat image : trainingData) {
+            //Mat img=new Mat();
+            if(image!=null) {
 
-            Mat videoMatGray = new Mat();
-            // Convert the current frame to grayscale:
-            //cvtColor(img, videoMatGray, COLOR_BGRA2GRAY);
-            equalizeHist(img, img);
+                Log.d("MatDecode","rows:"+image.rows()+" cols:"+image.cols());
+                    equalizeHist(image, image);
+                    //trainingData.get(counter).copyTo(imagesMatrix.col(counter));
+                    images.put(counter, image);
 
+                    labelsBuf.put(counter, 1);
 
-            int label = Integer.parseInt(image.getName().split("\\-")[0]);
+                    counter++;
 
-            images.put(counter, img);
-
-            labelsBuf.put(counter, label);
-
-            counter++;
+            }
+            else{
+                Log.d("SharedPrefs","Mat null");
+            }
         }
 
-        //faceRecognizer = createEigenFaceRecognizer();
-        faceRecognizerEigenfaces = createEigenFaceRecognizer();
-        faceRecognizerEigenfaces.setThreshold(2);
-        faceRecognizerEigenfaces.train(images, labels);
-
-       // faceRecognizerFisherfaces = createFisherFaceRecognizer();
-        //faceRecognizerFisherfaces.setThreshold(5000);
-        //faceRecognizerFisherfaces.train(images, labels);
 
         faceRecognizerLBP = createLBPHFaceRecognizer();
-        faceRecognizerLBP.setThreshold(80);
-        faceRecognizerLBP.train(images, labels);
-
+        faceRecognizerLBP.setThreshold(100);
+        if(!testMode) {
+            faceRecognizerLBP.train(images, labels);
+        }
+        else{
+            faceRecognizerLBP.update(images,labels);
+        }
         Log.d("Recognizer","Image training done.");
+        BytePointer bp =new BytePointer(Constants.APP_DIR+File.separator+"training.model");
+        faceRecognizerLBP.save(bp);
+        bp.deallocate();
     }
 
-    public static int Recognize(int algorithmInt) {
-        Log.d("Recognizer","Starting recognition");
-        Mat testImage = imread(TEST_IMAGE, CV_LOAD_IMAGE_GRAYSCALE);
+    public static int Recognize(Mat image,boolean testMode) {
+        Log.d("Recognizer","Starting recognition ");
 
-        Mat videoMatGray = new Mat();
-        // Convert the current frame to grayscale:
-        //cvtColor(testImage, videoMatGray, COLOR_BGRA2GRAY);
+
+        if(faceRecognizerLBP==null) {
+            BytePointer bp = new BytePointer(Constants.APP_DIR + File.separator + "training.model");
+            faceRecognizerLBP = createLBPHFaceRecognizer();
+            faceRecognizerLBP.load(bp);
+            bp.deallocate();
+        }
+
+
+        Mat testImage = new Mat(image.rows(),image.cols());
+        image.convertTo(testImage, CV_LOAD_IMAGE_GRAYSCALE);
+
         equalizeHist(testImage,testImage);
 
 
@@ -116,25 +132,25 @@ public class OpenCVFaceRecognizer {
 
         IntPointer label = new IntPointer(1);
         DoublePointer confidence = new DoublePointer(1);
-        switch(algorithmInt) {
-            case 1: faceRecognizerEigenfaces.predict(testImage, label, confidence); algorithm="Eigenfaces";break;
-            case 2: //faceRecognizerFisherfaces.predict(testImage,label,confidence); algorithm="Fisherfaces";
-                 break;
-            case 3: faceRecognizerLBP.predict(testImage,label,confidence); algorithm="LBPH";break;
-            default: break;
-        }
+        faceRecognizerLBP.predict(testImage,label,confidence); algorithm="LBPH";
+
 
         int predictedLabel = label.get(0);
 
         double confidencePrediction=confidence.get(0);
-
+        label.deallocate();
+        confidence.deallocate();
         Log.d("Recognizeri", algorithm+" Predicted label: " + predictedLabel+" Confidence: "+confidencePrediction);
-        if(confidencePrediction>70) {
+        if(testMode && (confidencePrediction>30)){
+            return -1;
+        }
+        if(confidencePrediction>100) {
         return -1;
         }
 
         label.deallocate();
         confidence.deallocate();
+
 
 
         return predictedLabel;
@@ -144,9 +160,10 @@ public class OpenCVFaceRecognizer {
         private boolean isRecognizing;
         public int label;
 
-        public RecognitionAsync(boolean isRecognizing ) {
+        public RecognitionAsync(boolean isRecognizing) {
 
             this.isRecognizing = isRecognizing;
+
 
         }
 
@@ -158,14 +175,14 @@ public class OpenCVFaceRecognizer {
         @Override
         protected Void doInBackground(Void... params) {
             if(isRecognizing){
-                OpenCVFaceRecognizer.Recognize(1);
-                OpenCVFaceRecognizer.Recognize(2);
-                mLabel=OpenCVFaceRecognizer.Recognize(3);
+                if(testImage!=null)
+                mLabel=OpenCVFaceRecognizer.Recognize(testImage,testMode);
                 isFinished=true;
 
             }
             else{
-                OpenCVFaceRecognizer.Train();
+                if(trainingData!=null)
+                OpenCVFaceRecognizer.Train(trainingData,testMode);
                 isFinished=true;
                 label=-1;
             }

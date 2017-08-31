@@ -31,7 +31,9 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Base64;
 import android.util.Log;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
@@ -45,11 +47,13 @@ import com.tzutalin.dlib.PedestrianDet;
 import com.tzutalin.dlib.VisionDetRet;
 
 import org.androidannotations.annotations.AfterViews;
+import org.androidannotations.annotations.App;
 import org.androidannotations.annotations.Background;
 import org.androidannotations.annotations.Click;
 import org.androidannotations.annotations.EActivity;
 import org.androidannotations.annotations.UiThread;
 import org.androidannotations.annotations.ViewById;
+import org.bytedeco.javacpp.opencv_core;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -65,7 +69,9 @@ import timber.log.Timber;
 public class MainActivity extends AppCompatActivity {
     private static final int RESULT_LOAD_IMG = 1;
     private static final int REQUEST_CODE_PERMISSION = 2;
-    private String name;
+    private Button btnRecognize;
+    private Button btnClear;
+    private AppSharedPreferences sharedPreferences;
     private static final String TAG = "MainActivity";
 
     // Storage Permissions
@@ -97,6 +103,7 @@ public class MainActivity extends AppCompatActivity {
         if (currentapiVersion >= Build.VERSION_CODES.M) {
             verifyPermissions(this);
         }
+
         runDetectAsync();
         //startActivity(new Intent(this, CameraActivity.class));
 
@@ -108,39 +115,57 @@ public class MainActivity extends AppCompatActivity {
         faceImage.setBackgroundResource(R.drawable.face_animation);
         faceAnimation= (AnimationDrawable) faceImage.getBackground();
         faceAnimation.start();
+        btnClear=(Button) findViewById(R.id.btnClear);
+        btnRecognize=(Button) findViewById(R.id.btnRecognize);
+
+        sharedPreferences = new AppSharedPreferences(this);
+
+        ArrayList<opencv_core.Mat> trainingData = sharedPreferences.getListMat("trainingData");
+        if(trainingData!=null){
+            btnRecognize.setText(R.string.btnRecognize);
+            btnClear.setEnabled(true);
+        }
+        else{
+            btnRecognize.setText(R.string.btnTrain);
+            btnClear.setEnabled(false);
+        }
         //Toast.makeText(MainActivity.this, getString(R.string.description_info), Toast.LENGTH_LONG).show();
     }
+    @Click(R.id.btnClear)
+    protected void ClearData(){
+        sharedPreferences.clear();
+        File file=new File(Constants.APP_DIR+File.separator+"training.model");
+        if(file.exists()){
+            file.delete();
+        }
 
-    @Click({R.id.btnRecognize})
-    protected void Recognize() {
+        Toast.makeText(this,R.string.app_data_cleared,Toast.LENGTH_LONG);
+        btnRecognize.setText(R.string.btnTrain);
+        btnClear.setEnabled(false);
+    }
+    @Click(R.id.btnRecognize)
+    protected void TrainOrRecognize(){
+        Log.d("MainActivity",btnRecognize.getText().toString()+"assert: "+(btnRecognize.getText().toString()==getString(R.string.btnRecognize)));
+        if(btnRecognize.getText().toString()==getString(R.string.btnRecognize)){
+            Recognize();
+        }
+        else{
+            Train();
+        }
+    }
+
+    private void Recognize() {
         Intent i=new Intent(this, CameraActivity.class);
         i.putExtra("isRecognizing",true);
         startActivity(i);
     }
 
-    @Click({R.id.btnTrain})
-    protected void Train() {
+    private void Train() {
 
-        AlertDialog.Builder alert = new AlertDialog.Builder(this);
-        final EditText edittext = new EditText(MainActivity.this);
-        //alert.setMessage("Enter New Name");
-        alert.setTitle("Enter New Name");
-
-        alert.setView(edittext);
-
-        alert.setPositiveButton("Train", new DialogInterface.OnClickListener() {
-            public void onClick(DialogInterface dialog, int whichButton) {
-
-               name = edittext.getText().toString();
-                if(!name.equals("")) {
                     Intent i = new Intent(MainActivity.this, CameraActivity.class);
                     i.putExtra("isRecognizing", false);
-                    i.putExtra("name", name);
+
                     startActivity(i);
-                }
-            }
-        });
-        alert.show();
 
     }
 
@@ -198,7 +223,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         if (requestCode == REQUEST_CODE_PERMISSION) {
-                //runDetectAsync();
+                runDetectAsync();
         }
     }
 
@@ -209,42 +234,27 @@ public class MainActivity extends AppCompatActivity {
     // ==========================================================
     private ProgressDialog mDialog;
 
-    @Background
-    @NonNull
     protected void runDetectAsync() {
-        showDiaglog();
-
-        File appDir=new File(Constants.APP_DIR);
-        if(!appDir.exists()){
-            appDir.mkdirs();
-            Log.d("ExtFiles",Constants.APP_DIR+" created");
-        }
-
-        final String faceShapeModelPath = Constants.getFaceShapeModelPath();
-        if (!new File(faceShapeModelPath).exists()) {
-            FileUtils.copyFileFromRawToOthers(getApplicationContext(), R.raw.shape_predictor_68_face_landmarks, faceShapeModelPath);
-        }
-
-        final String trainingDirPath=Constants.APP_DIR+File.separator+"training";
-        File trainingDir=new File(trainingDirPath);
-
-        if(!trainingDir.exists()||trainingDir.listFiles().length==0){
-
-            Log.d("ExtFiles","training.zip created to "+Constants.getTrainingImagesZipPath());
-            FileUtils.copyFileFromRawToOthers(getApplicationContext(),R.raw.training,Constants.getTrainingImagesZipPath());
-            Log.d("ExtFiles","Starting extraction");
-            if(FileUtils.unpackTrainingZip(Constants.APP_DIR,"training.zip")){
-                new File(Constants.getTrainingImagesZipPath()).delete();
+        //showDiaglog();
+        if(verifyPermissions(this)) {
+            File appDir = new File(Constants.APP_DIR);
+            if (!appDir.exists()) {
+                appDir.mkdirs();
+                Log.d("ExtFiles", Constants.APP_DIR + " created");
             }
-         }if(trainingDir.exists()) {
 
-            OpenCVFaceRecognizer objRecognizer = new OpenCVFaceRecognizer(false);
-            while (!objRecognizer.isFinished) {
-
+            final String faceShapeModelPath = Constants.getFaceShapeModelPath();
+            if (!new File(faceShapeModelPath).exists()) {
+                FileUtils.copyFileFromRawToOthers(getApplicationContext(), R.raw.shape_predictor_68_face_landmarks, faceShapeModelPath);
             }
+
+
+
+
+
         }
 
-       dismissDialog();
+
     }
 
 

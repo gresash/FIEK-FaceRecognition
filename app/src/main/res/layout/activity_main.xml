@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/background_dark"
+    android:background="@drawable/black_wallpaper"
     android:fitsSystemWindows="true"
     tools:context=".MainActivity">
 
@@ -24,31 +24,20 @@
             android:layout_width="185dp"
             android:layout_height="245dp"
             android:layout_gravity="center_vertical|center_horizontal"
+            android:layout_marginBottom="30dp"
             android:adjustViewBounds="false" />
 
         <Button
             android:id="@+id/btnRecognize"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_centerHorizontal="true"
-            android:layout_margin="10dp"
-            android:layout_marginTop="0dp"
-            android:background="@color/grey_title"
-            android:text="@string/btnRecognize"
-            android:textColor="@android:color/holo_green_light" />
+            android:text="@string/btnRecognize" />
 
         <Button
-            android:id="@+id/btnTrain"
+            android:id="@+id/btnClear"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_alignEnd="@+id/btnRecognize"
-            android:layout_below="@+id/btnRecognize"
-            android:layout_margin="10dp"
-            android:layout_marginTop="0dp"
-            android:background="@color/grey_title"
-            android:text="@string/btnTrain"
-            android:textColor="@android:color/holo_green_light" />
+            android:text="@string/btnClear" />
 
     </LinearLayout>
 
